@@ -122,12 +122,33 @@
 
         const clock = new THREE.Clock();
 
-        // Menyu funksiyalari
+        // PeerJS server sozlamalari (Ulanish xatolarining oldini olish uchun)
+        function createPeerInstance(onOpenCallback) {
+            // PeerJS ochiq serveriga aniq parametrlar bilan ulanamiz
+            const p = new Peer({
+                host: '0.peerjs.com',
+                port: 443,
+                secure: true,
+                path: '/'
+            });
+
+            p.on('error', (err) => {
+                console.error("PeerJS xatosi:", err);
+                alert("Serverga ulanishda xatolik yuz berdi: " + err.type + "\nIltimos, internetni tekshiring yoki sahifani yangilang.");
+            });
+
+            if (onOpenCallback) {
+                p.on('open', onOpenCallback);
+            }
+            return p;
+        }
+
+        // Host (Xona yaratish)
         function initPeerForHost() {
-            peer = new Peer();
-            peer.on('open', (id) => {
+            peer = createPeerInstance((id) => {
                 document.getElementById('myIdDisplay').innerText = "Sizning Xona ID: " + id;
             });
+
             peer.on('connection', (incomingConn) => {
                 conn = incomingConn;
                 setupConnection();
@@ -136,16 +157,16 @@
         }
 
         function createRoom() {
+            document.querySelector('.btn-blue').innerText = "Xona yaratilmoqda...";
             initPeerForHost();
-            document.querySelector('.btn-blue').innerText = "Xona yaratildi, kutilyapti...";
         }
 
+        // Client (Xonaga qo'shilish)
         function joinRoom() {
-            const peerId = document.getElementById('peerIdInput').value;
+            const peerId = document.getElementById('peerIdInput').value.trim();
             if (!peerId) return alert('Iltimos xona ID raqamini kiriting!');
             
-            peer = new Peer();
-            peer.on('open', () => {
+            peer = createPeerInstance(() => {
                 conn = peer.connect(peerId);
                 setupConnection();
                 startGame();
@@ -182,7 +203,7 @@
         // 3D O'yin Muhiti
         function init3D() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a2e); // Kechki osmon / zamonaviy fon
+            scene.background = new THREE.Color(0x1a1a2e);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -200,13 +221,10 @@
             const playerGeo = new THREE.BoxGeometry(1, 2, 1);
             const playerMat = new THREE.MeshStandardMaterial({ color: 0xff4757 });
             player = new THREE.Mesh(playerGeo, playerMat);
-            player.position.set(0, 15, 0); // Yuqoridan boshlaymiz
+            player.position.set(0, 15, 0);
             scene.add(player);
 
-            // Zinapoyalar va Platformalar (Pastga va tepaga qarab tushish/chiqish)
             createStairsAndPlatforms();
-
-            // Boshqaruv
             setupControls();
             window.addEventListener('resize', onWindowResize);
         }
@@ -215,7 +233,6 @@
             const mat1 = new THREE.MeshStandardMaterial({ color: 0x0fa36d });
             const mat2 = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
 
-            // Spiral yoki zinapoyali qiyalik shaklida pastga tushuvchi platformalar
             let currentX = 0, currentY = 12, currentZ = 0;
             
             for (let i = 0; i < 50; i++) {
@@ -227,8 +244,7 @@
                 plat.position.set(currentX, currentY, currentZ);
                 scene.add(plat);
 
-                // Pastga va yonma-yon qadam tashlab tushish uchun yo'nalish
-                currentY -= 1.5; // Pastga qarab pasayadi
+                currentY -= 1.5;
                 if (i % 2 === 0) {
                     currentX += 4;
                 } else {
@@ -281,7 +297,6 @@
 
             const delta = clock.getDelta();
 
-            // Harakat
             const speed = 5.0 * delta;
             let moveDir = new THREE.Vector3();
             if (moveForward) moveDir.z -= 1;
@@ -294,27 +309,21 @@
 
             player.position.addScaledVector(moveDir, speed);
 
-            // Gravitatsiya va yumshoq tushish
             velocityY -= 0.005;
             player.position.y += velocityY;
 
-            // Pastki cheklov (yerga tushib ketmasligi uchun)
             if (player.position.y <= -20) {
-                player.position.set(0, 15, 0); // Qayta boshiga chiqish
+                player.position.set(0, 15, 0);
                 velocityY = 0;
             } else if (player.position.y <= 1.5 && player.position.y > 0) {
-                // Oddiy yer sathi
                 canJump = true;
             }
 
-            // Kamera o'yinchi ortida
             camera.position.copy(player.position);
             camera.position.y += 1.6;
 
-            // Balandlikni ko'rsatish
             document.getElementById('heightScore').innerText = Math.floor(player.position.y);
 
-            // PeerJS orqali ma'lumot yuborish
             if (isConnected && conn && conn.open) {
                 conn.send({
                     id: peer.id,
