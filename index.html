@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Multiplayer Only Up Parkour</title>
+    <title>3D Multiplayer Parkour - Main Menu</title>
     <style>
         body {
             margin: 0;
@@ -11,31 +11,64 @@
             font-family: Arial, sans-serif;
             background: #111;
         }
-        #ui {
+        /* Asosiy Menyu dizayni */
+        #menuContainer {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 15, 25, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
             color: white;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 8px;
-            z-index: 10;
-            pointer-events: auto;
         }
+        .menu-box {
+            background: #222530;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 350px;
+        }
+        h1 { margin-bottom: 20px; color: #61dafb; font-size: 24px; }
         input, button {
-            padding: 8px 12px;
-            margin: 5px 0;
-            font-size: 14px;
-            border-radius: 4px;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 16px;
+            border-radius: 6px;
             border: none;
+            box-sizing: border-box;
         }
+        input { background: #333842; color: white; text-align: center; }
         button {
             background: #4CAF50;
             color: white;
             cursor: pointer;
             font-weight: bold;
+            transition: 0.2s;
         }
         button:hover { background: #45a049; }
+        .btn-blue { background: #2196F3; }
+        .btn-blue:hover { background: #0b7dda; }
+
+        /* O'yin ichidagi UI */
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 18px;
+            border-radius: 8px;
+            z-index: 10;
+            display: none;
+            pointer-events: none;
+        }
         #crosshair {
             position: absolute;
             top: 50%;
@@ -47,6 +80,7 @@
             transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 5;
+            display: none;
         }
     </style>
     <!-- Three.js va PeerJS kutubxonalari -->
@@ -54,19 +88,28 @@
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 </head>
 <body>
+
+    <!-- ASOSIY MENYU -->
+    <div id="menuContainer">
+        <div class="menu-box">
+            <h1>3D Parkour Multiplayer</h1>
+            <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">Zinapoyalardan pastga va yuqoriga harakatlanish</p>
+            
+            <button class="btn-blue" onclick="createRoom()">Xona Yaratish (Host)</button>
+            <p id="myIdDisplay" style="font-size: 12px; color: #4CAF50; margin: 5px 0;"></p>
+            
+            <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
+            
+            <input type="text" id="peerIdInput" placeholder="Do'stning Xona ID si">
+            <button onclick="joinRoom()">Xonaga Qo'shilish</button>
+        </div>
+    </div>
+
     <div id="crosshair"></div>
     <div id="ui">
-        <h2>3D Multiplayer Only Up</h2>
-        <div id="setup">
-            <p>ID: <span id="myId">Ulanmoqda...</span></p>
-            <input type="text" id="peerIdInput" placeholder="Do'stning ID sini kiriting"><br>
-            <button onclick="connectToPeer()">Ulanish (Join)</button>
-        </div>
-        <div id="gameInfo" style="display:none;">
-            <p style="color: #4CAF50; font-weight: bold;">Ulandi! 🟢</p>
-            <p>Balandlik (Zina): <span id="heightScore">0</span>m</p>
-            <p>Boshqarish: <b>W, A, S, D</b> - Yurish | <b>Space</b> - Sakrash | <b>Mishka</b> - Kamera</p>
-        </div>
+        <p>Holat: <span id="connectionStatus" style="color: #ff4757;">Kutilyapti...</span></p>
+        <p>Balandlik: <span id="heightScore">0</span>m</p>
+        <p style="font-size: 12px; color: #ccc; margin-top: 5px;">W, A, S, D - Yurish | Space - Sakrash</p>
     </div>
 
     <script>
@@ -75,79 +118,129 @@
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let velocityY = 0, canJump = false;
         let isConnected = false;
+        let gameStarted = false;
 
-        const playerVelocity = new THREE.Vector3();
         const clock = new THREE.Clock();
 
-        init();
-        animate();
+        // Menyu funksiyalari
+        function initPeerForHost() {
+            peer = new Peer();
+            peer.on('open', (id) => {
+                document.getElementById('myIdDisplay').innerText = "Sizning Xona ID: " + id;
+            });
+            peer.on('connection', (incomingConn) => {
+                conn = incomingConn;
+                setupConnection();
+                startGame();
+            });
+        }
 
-        function init() {
-            // 1. Sahna (Scene)
+        function createRoom() {
+            initPeerForHost();
+            document.querySelector('.btn-blue').innerText = "Xona yaratildi, kutilyapti...";
+        }
+
+        function joinRoom() {
+            const peerId = document.getElementById('peerIdInput').value;
+            if (!peerId) return alert('Iltimos xona ID raqamini kiriting!');
+            
+            peer = new Peer();
+            peer.on('open', () => {
+                conn = peer.connect(peerId);
+                setupConnection();
+                startGame();
+            });
+        }
+
+        function setupConnection() {
+            isConnected = true;
+            document.getElementById('connectionStatus').innerText = "Ulandi! 🟢";
+            document.getElementById('connectionStatus').style.color = "#4CAF50";
+
+            conn.on('data', (data) => {
+                if (!otherPlayers[data.id]) {
+                    const oGeo = new THREE.BoxGeometry(1, 2, 1);
+                    const oMat = new THREE.MeshStandardMaterial({ color: 0x1e90ff });
+                    otherPlayers[data.id] = new THREE.Mesh(oGeo, oMat);
+                    scene.add(otherPlayers[data.id]);
+                }
+                otherPlayers[data.id].position.set(data.x, data.y, data.z);
+            });
+        }
+
+        function startGame() {
+            gameStarted = true;
+            document.getElementById('menuContainer').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('crosshair').style.display = 'block';
+            
+            init3D();
+            animate();
+            document.body.requestPointerLock();
+        }
+
+        // 3D O'yin Muhiti
+        function init3D() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb); // Osmon rangi
+            scene.background = new THREE.Color(0x1a1a2e); // Kechki osmon / zamonaviy fon
 
-            // 2. Kamera
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-            // 3. Render
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // 4. Yorug'lik
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(10, 50, 10);
+            // Yorug'lik
+            const light = new THREE.DirectionalLight(0xffffff, 1.2);
+            light.position.set(20, 50, 20);
             scene.add(light);
-            scene.add(new THREE.AmbientLight(0x404040));
+            scene.add(new THREE.AmbientLight(0x505050));
 
-            // 5. O'yinchi (Siz)
+            // O'yinchi (Siz)
             const playerGeo = new THREE.BoxGeometry(1, 2, 1);
             const playerMat = new THREE.MeshStandardMaterial({ color: 0xff4757 });
             player = new THREE.Mesh(playerGeo, playerMat);
-            player.position.set(0, 2, 0);
+            player.position.set(0, 15, 0); // Yuqoridan boshlaymiz
             scene.add(player);
 
-            // 6. Parkur Platformalari (Tepaga qarab chiquvchi zinapoyalar / Only Up uslubi)
-            createPlatforms();
+            // Zinapoyalar va Platformalar (Pastga va tepaga qarab tushish/chiqish)
+            createStairsAndPlatforms();
 
-            // 7. Hodisalar (Eventlisteners)
+            // Boshqaruv
             setupControls();
-
-            // 8. PeerJS Multiplayer Sozlamasi
-            initPeer();
-
             window.addEventListener('resize', onWindowResize);
         }
 
-        function createPlatforms() {
-            const platformMat = new THREE.MeshStandardMaterial({ color: 0x2ed573 });
+        function createStairsAndPlatforms() {
+            const mat1 = new THREE.MeshStandardMaterial({ color: 0x0fa36d });
+            const mat2 = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
+
+            // Spiral yoki zinapoyali qiyalik shaklida pastga tushuvchi platformalar
+            let currentX = 0, currentY = 12, currentZ = 0;
             
-            // Boshlang'ich platforma
-            const startPlat = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), platformMat);
-            startPlat.position.set(0, 0, 0);
-            scene.add(startPlat);
-
-            // Tepaga chiquvchi to'siq platformalar
-            let prevX = 0, prevZ = 0, prevY = 0;
-            for (let i = 1; i <= 30; i++) {
-                prevY += 3; // Har safar balandroqqa chiqadi
-                prevX += (Math.random() - 0.5) * 6;
-                prevZ -= 5 + Math.random() * 3;
-
-                const width = Math.max(3, 6 - i * 0.1);
-                const depth = Math.max(3, 6 - i * 0.1);
-                const plat = new THREE.Mesh(new THREE.BoxGeometry(width, 1, depth), platformMat);
-                plat.position.set(prevX, prevY, prevZ);
+            for (let i = 0; i < 50; i++) {
+                const plat = new THREE.Mesh(
+                    new THREE.BoxGeometry(5, 0.8, 5), 
+                    i % 2 === 0 ? mat1 : mat2
+                );
+                
+                plat.position.set(currentX, currentY, currentZ);
                 scene.add(plat);
+
+                // Pastga va yonma-yon qadam tashlab tushish uchun yo'nalish
+                currentY -= 1.5; // Pastga qarab pasayadi
+                if (i % 2 === 0) {
+                    currentX += 4;
+                } else {
+                    currentZ -= 4;
+                }
             }
         }
 
         function setupControls() {
-            // Mishka bilan kamerani aylantirish
             let euler = new THREE.Euler(0, 0, 0, 'YXZ');
             document.body.addEventListener('click', () => {
-                document.body.requestPointerLock();
+                if(gameStarted) document.body.requestPointerLock();
             });
 
             document.addEventListener('mousemove', (event) => {
@@ -163,14 +256,13 @@
                 }
             });
 
-            // Klaviatura tugmalari
             document.addEventListener('keydown', (e) => {
                 if (e.code === 'KeyW') moveForward = true;
                 if (e.code === 'KeyS') moveBackward = true;
                 if (e.code === 'KeyA') moveLeft = true;
                 if (e.code === 'KeyD') moveRight = true;
                 if (e.code === 'Space' && canJump) {
-                    velocityY = 0.15; // Sakrash kuchi
+                    velocityY = 0.12;
                     canJump = false;
                 }
             });
@@ -183,50 +275,14 @@
             });
         }
 
-        function initPeer() {
-            peer = new Peer(); // Tasodifiy ID bilan Peer ochish
-            peer.on('open', (id) => {
-                document.getElementById('myId').innerText = id;
-            });
-
-            // Boshqa o'yinchi ulanishini kutish
-            peer.on('connection', (incomingConn) => {
-                conn = incomingConn;
-                setupConnection();
-            });
-        }
-
-        function connectToPeer() {
-            const peerId = document.getElementById('peerIdInput').value;
-            if (!peerId) return alert('Iltimos ID kiriting!');
-            conn = peer.connect(peerId);
-            setupConnection();
-        }
-
-        function setupConnection() {
-            isConnected = true;
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('gameInfo').style.display = 'block';
-
-            conn.on('data', (data) => {
-                // Boshqa o'yinchining pozitsiyasini qabul qilish
-                if (!otherPlayers[data.id]) {
-                    const oGeo = new THREE.BoxGeometry(1, 2, 1);
-                    const oMat = new THREE.MeshStandardMaterial({ color: 0x1e90ff });
-                    otherPlayers[data.id] = new THREE.Mesh(oGeo, oMat);
-                    scene.add(otherPlayers[data.id]);
-                }
-                otherPlayers[data.id].position.set(data.x, data.y, data.z);
-            });
-        }
-
         function animate() {
             requestAnimationFrame(animate);
+            if (!gameStarted) return;
 
             const delta = clock.getDelta();
 
-            // O'yinchi harakati mantiqi
-            const speed = 6.0 * delta;
+            // Harakat
+            const speed = 5.0 * delta;
             let moveDir = new THREE.Vector3();
             if (moveForward) moveDir.z -= 1;
             if (moveBackward) moveDir.z += 1;
@@ -234,29 +290,31 @@
             if (moveRight) moveDir.x += 1;
             moveDir.normalize();
             moveDir.applyQuaternion(camera.quaternion);
-            moveDir.y = 0; // Faqat XZ tekisligida yurish
+            moveDir.y = 0;
 
             player.position.addScaledVector(moveDir, speed);
 
-            // Tortishish kuchi (Gravity) va sakrash
-            velocityY -= 0.006; // Gravitatsiya
+            // Gravitatsiya va yumshoq tushish
+            velocityY -= 0.005;
             player.position.y += velocityY;
 
-            // Yerga / Platformaga tushishni tekshirish (Oddiy simulyatsiya)
-            if (player.position.y <= 1.5) {
-                player.position.y = 1.5;
+            // Pastki cheklov (yerga tushib ketmasligi uchun)
+            if (player.position.y <= -20) {
+                player.position.set(0, 15, 0); // Qayta boshiga chiqish
                 velocityY = 0;
+            } else if (player.position.y <= 1.5 && player.position.y > 0) {
+                // Oddiy yer sathi
                 canJump = true;
             }
 
-            // Kamerani o'yinchi ortidan ergashishi
+            // Kamera o'yinchi ortida
             camera.position.copy(player.position);
-            camera.position.y += 1.5; // Ko'z balandligi
+            camera.position.y += 1.6;
 
-            // Balandlikni ekranga chiqarish
-            document.getElementById('heightScore').innerText = Math.max(0, Math.floor(player.position.y));
+            // Balandlikni ko'rsatish
+            document.getElementById('heightScore').innerText = Math.floor(player.position.y);
 
-            // Ma'lumotlarni do'stga yuborish (Multiplayer)
+            // PeerJS orqali ma'lumot yuborish
             if (isConnected && conn && conn.open) {
                 conn.send({
                     id: peer.id,
@@ -270,6 +328,7 @@
         }
 
         function onWindowResize() {
+            if (!gameStarted) return;
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
