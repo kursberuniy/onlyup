@@ -1,149 +1,36 @@
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { overflow: hidden; font-family: sans-serif; background: #111; color: #fff; }
 
-body {
-    overflow: hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #111;
-    color: #fff;
-}
-
-/* Asosiy Menyu */
 #menuContainer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(15, 23, 42, 0.95);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
+    position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.95); display: flex; justify-content: center; align-items: center; z-index: 100;
 }
-
 .menu-box {
-    background: #1e293b;
-    padding: 35px 30px;
-    border-radius: 16px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-    text-align: center;
-    width: 380px;
-    border: 1px solid #334155;
+    background: #1e293b; padding: 35px 30px; border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6); text-align: center; width: 380px; border: 1px solid #334155;
 }
+h1 { font-size: 22px; color: #38bdf8; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+input, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 15px; border-radius: 8px; border: none; outline: none; }
+input { background: #0f172a; color: #fff; text-align: center; border: 1px solid #334155; }
+button { font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn-primary { background: #10b981; color: white; }
+.btn-primary:hover { background: #059669; }
+.btn-secondary { background: #3b82f6; color: white; }
+.btn-secondary:hover { background: #2563eb; }
+.room-code { font-size: 13px; color: #34d399; font-weight: bold; margin-top: 6px; word-break: break-all; }
+.divider { border-top: 1px solid #334155; margin: 18px 0; }
 
-h1 {
-    font-size: 22px;
-    color: #38bdf8;
-    margin-bottom: 6px;
-}
-
-.subtitle {
-    font-size: 13px;
-    color: #94a3b8;
-    margin-bottom: 20px;
-}
-
-input, button {
-    width: 100%;
-    padding: 12px 16px;
-    margin: 8px 0;
-    font-size: 15px;
-    border-radius: 8px;
-    border: none;
-    outline: none;
-}
-
-input {
-    background: #0f172a;
-    color: #fff;
-    text-align: center;
-    border: 1px solid #334155;
-}
-
-input::placeholder {
-    color: #64748b;
-}
-
-button {
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.btn-primary {
-    background: #10b981;
-    color: white;
-}
-
-.btn-primary:hover {
-    background: #059669;
-}
-
-.btn-secondary {
-    background: #3b82f6;
-    color: white;
-}
-
-.btn-secondary:hover {
-    background: #2563eb;
-}
-
-.room-code {
-    font-size: 14px;
-    color: #34d399;
-    font-weight: bold;
-    margin-top: 6px;
-}
-
-.divider {
-    border-top: 1px solid #334155;
-    margin: 18px 0;
-}
-
-/* O'yin ichidagi UI */
 #ui {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    background: rgba(15, 23, 42, 0.75);
-    padding: 14px 18px;
-    border-radius: 10px;
-    z-index: 10;
-    display: none;
-    pointer-events: none;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: absolute; top: 20px; left: 20px; background: rgba(15, 23, 42, 0.75);
+    padding: 14px 18px; border-radius: 10px; z-index: 10; display: none; pointer-events: none;
+    border: 1px solid rgba(255,255,255,0.1);
 }
-
-.status-waiting {
-    color: #fbbf24;
-    font-weight: bold;
-}
-
-.status-online {
-    color: #34d399;
-    font-weight: bold;
-}
-
-.controls-hint {
-    font-size: 12px;
-    color: #94a3b8;
-    margin-top: 6px;
-}
-
+.status-waiting { color: #fbbf24; font-weight: bold; }
+.status-online { color: #34d399; font-weight: bold; }
+.controls-hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
 #crosshair {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 6px;
-    height: 6px;
-    background: white;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 5;
-    display: none;
+    position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
+    background: white; border-radius: 50%; transform: translate(-50%, -50%);
+    pointer-events: none; z-index: 5; display: none;
 }
