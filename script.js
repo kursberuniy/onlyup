@@ -10,7 +10,6 @@ let gameStarted = false;
 
 const clock = new THREE.Clock();
 
-// MQTT Brokerga ulanish (Bloklanmaydigan bepul server)
 function connectMQTT(callback) {
     const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
     client = mqtt.connect(brokerUrl);
@@ -200,7 +199,6 @@ function setupControls() {
     });
 }
 
-// Har 50ms da o'yinchi pozitsiyasini tarmoqqa uzatish
 setInterval(() => {
     if (gameStarted) sendMyPosition();
 }, 50);
