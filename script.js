@@ -8,6 +8,9 @@ let moveForward = false, moveBackward = false, moveLeft = false, moveRight = fal
 let velocityY = 0, canJump = false;
 let gameStarted = false;
 
+// Platformalar koordinatalarini saqlash uchun massiv
+let platforms = [];
+
 const clock = new THREE.Clock();
 
 function connectMQTT(callback) {
@@ -127,7 +130,7 @@ function init3D() {
     const playerGeo = new THREE.BoxGeometry(1, 2, 1);
     const playerMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
     player = new THREE.Mesh(playerGeo, playerMat);
-    player.position.set(0, 15, 0);
+    player.position.set(0, 16, 0); // Boshlang'ich balandlik
     scene.add(player);
 
     createStairsAndPlatforms();
@@ -136,18 +139,28 @@ function init3D() {
 }
 
 function createStairsAndPlatforms() {
+    platforms = []; // Tozalash
     const mat1 = new THREE.MeshStandardMaterial({ color: 0x10b981 });
     const mat2 = new THREE.MeshStandardMaterial({ color: 0xf59e0b });
 
     let currentX = 0, currentY = 12, currentZ = 0;
 
     for (let i = 0; i < 60; i++) {
-        const plat = new THREE.Mesh(
-            new THREE.BoxGeometry(5, 0.8, 5),
-            i % 2 === 0 ? mat1 : mat2
-        );
+        const platGeo = new THREE.BoxGeometry(5, 0.8, 5);
+        const plat = new THREE.Mesh(platGeo, i % 2 === 0 ? mat1 : mat2);
+        
         plat.position.set(currentX, currentY, currentZ);
         scene.add(plat);
+
+        // Kolliziya uchun platforma ma'lumotlarini saqlaymiz
+        platforms.push({
+            x: currentX,
+            y: currentY,
+            z: currentZ,
+            width: 5,
+            height: 0.8,
+            depth: 5
+        });
 
         currentY -= 1.4;
         if (i % 2 === 0) {
@@ -222,14 +235,38 @@ function animate() {
 
     player.position.addScaledVector(moveDir, speed);
 
+    // Gravitatsiya
     velocityY -= 0.005;
     player.position.y += velocityY;
 
+    // Kolliziyani tekshirish (Platformalar ustida turishi uchun)
+    canJump = false;
+    let playerBottom = player.position.y - 1.0; // Personajning pastki qismi (boyi 2, demak markazdan -1)
+
+    for (let p of platforms) {
+        let pTop = p.y + (p.height / 2);
+        let pHalfW = p.width / 2;
+        let pHalfD = p.depth / 2;
+
+        // X va Z bo'yicha platforma ichidami?
+        if (
+            player.position.x >= p.x - pHalfW && player.position.x <= p.x + pHalfW &&
+            player.position.z >= p.z - pHalfD && player.position.z <= p.z + pHalfD
+        ) {
+            // Agar tushayotgan bo'lsa va platformaning ustki qismiga yaqinlashgan bo'lsa
+            if (playerBottom <= pTop && playerBottom >= pTop - 0.6 && velocityY <= 0) {
+                player.position.y = pTop + 1.0; // Platforma ustiga o'rnatish
+                velocityY = 0;
+                canJump = true;
+                break;
+            }
+        }
+    }
+
+    // Agar juda pastga tushib ketsa, boshiga qaytarish
     if (player.position.y <= -75) {
-        player.position.set(0, 15, 0);
+        player.position.set(0, 16, 0);
         velocityY = 0;
-    } else if (player.position.y <= 1.5 && player.position.y > 0) {
-        canJump = true;
     }
 
     camera.position.copy(player.position);
