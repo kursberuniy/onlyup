@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Multiplayer Only Up Parkour</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: #111;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 10;
+            pointer-events: auto;
+        }
+        input, button {
+            padding: 8px 12px;
+            margin: 5px 0;
+            font-size: 14px;
+            border-radius: 4px;
+            border: none;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #45a049; }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 5;
+        }
+    </style>
+    <!-- Three.js va PeerJS kutubxonalari -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <div id="crosshair"></div>
+    <div id="ui">
+        <h2>3D Multiplayer Only Up</h2>
+        <div id="setup">
+            <p>ID: <span id="myId">Ulanmoqda...</span></p>
+            <input type="text" id="peerIdInput" placeholder="Do'stning ID sini kiriting"><br>
+            <button onclick="connectToPeer()">Ulanish (Join)</button>
+        </div>
+        <div id="gameInfo" style="display:none;">
+            <p style="color: #4CAF50; font-weight: bold;">Ulandi! 🟢</p>
+            <p>Balandlik (Zina): <span id="heightScore">0</span>m</p>
+            <p>Boshqarish: <b>W, A, S, D</b> - Yurish | <b>Space</b> - Sakrash | <b>Mishka</b> - Kamera</p>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, player, peer, conn;
+        let otherPlayers = {};
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let velocityY = 0, canJump = false;
+        let isConnected = false;
+
+        const playerVelocity = new THREE.Vector3();
+        const clock = new THREE.Clock();
+
+        init();
+        animate();
+
+        function init() {
+            // 1. Sahna (Scene)
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb); // Osmon rangi
+
+            // 2. Kamera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // 3. Render
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // 4. Yorug'lik
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(10, 50, 10);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            // 5. O'yinchi (Siz)
+            const playerGeo = new THREE.BoxGeometry(1, 2, 1);
+            const playerMat = new THREE.MeshStandardMaterial({ color: 0xff4757 });
+            player = new THREE.Mesh(playerGeo, playerMat);
+            player.position.set(0, 2, 0);
+            scene.add(player);
+
+            // 6. Parkur Platformalari (Tepaga qarab chiquvchi zinapoyalar / Only Up uslubi)
+            createPlatforms();
+
+            // 7. Hodisalar (Eventlisteners)
+            setupControls();
+
+            // 8. PeerJS Multiplayer Sozlamasi
+            initPeer();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createPlatforms() {
+            const platformMat = new THREE.MeshStandardMaterial({ color: 0x2ed573 });
+            
+            // Boshlang'ich platforma
+            const startPlat = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), platformMat);
+            startPlat.position.set(0, 0, 0);
+            scene.add(startPlat);
+
+            // Tepaga chiquvchi to'siq platformalar
+            let prevX = 0, prevZ = 0, prevY = 0;
+            for (let i = 1; i <= 30; i++) {
+                prevY += 3; // Har safar balandroqqa chiqadi
+                prevX += (Math.random() - 0.5) * 6;
+                prevZ -= 5 + Math.random() * 3;
+
+                const width = Math.max(3, 6 - i * 0.1);
+                const depth = Math.max(3, 6 - i * 0.1);
+                const plat = new THREE.Mesh(new THREE.BoxGeometry(width, 1, depth), platformMat);
+                plat.position.set(prevX, prevY, prevZ);
+                scene.add(plat);
+            }
+        }
+
+        function setupControls() {
+            // Mishka bilan kamerani aylantirish
+            let euler = new THREE.Euler(0, 0, 0, 'YXZ');
+            document.body.addEventListener('click', () => {
+                document.body.requestPointerLock();
+            });
+
+            document.addEventListener('mousemove', (event) => {
+                if (document.pointerLockElement === document.body) {
+                    const movementX = event.movementX || event.mozMovementX || 0;
+                    const movementY = event.movementY || event.mozMovementY || 0;
+
+                    euler.setFromQuaternion(camera.quaternion);
+                    euler.y -= movementX * 0.002;
+                    euler.x -= movementY * 0.002;
+                    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+                    camera.quaternion.setFromEuler(euler);
+                }
+            });
+
+            // Klaviatura tugmalari
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'KeyW') moveForward = true;
+                if (e.code === 'KeyS') moveBackward = true;
+                if (e.code === 'KeyA') moveLeft = true;
+                if (e.code === 'KeyD') moveRight = true;
+                if (e.code === 'Space' && canJump) {
+                    velocityY = 0.15; // Sakrash kuchi
+                    canJump = false;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (e.code === 'KeyW') moveForward = false;
+                if (e.code === 'KeyS') moveBackward = false;
+                if (e.code === 'KeyA') moveLeft = false;
+                if (e.code === 'KeyD') moveRight = false;
+            });
+        }
+
+        function initPeer() {
+            peer = new Peer(); // Tasodifiy ID bilan Peer ochish
+            peer.on('open', (id) => {
+                document.getElementById('myId').innerText = id;
+            });
+
+            // Boshqa o'yinchi ulanishini kutish
+            peer.on('connection', (incomingConn) => {
+                conn = incomingConn;
+                setupConnection();
+            });
+        }
+
+        function connectToPeer() {
+            const peerId = document.getElementById('peerIdInput').value;
+            if (!peerId) return alert('Iltimos ID kiriting!');
+            conn = peer.connect(peerId);
+            setupConnection();
+        }
+
+        function setupConnection() {
+            isConnected = true;
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('gameInfo').style.display = 'block';
+
+            conn.on('data', (data) => {
+                // Boshqa o'yinchining pozitsiyasini qabul qilish
+                if (!otherPlayers[data.id]) {
+                    const oGeo = new THREE.BoxGeometry(1, 2, 1);
+                    const oMat = new THREE.MeshStandardMaterial({ color: 0x1e90ff });
+                    otherPlayers[data.id] = new THREE.Mesh(oGeo, oMat);
+                    scene.add(otherPlayers[data.id]);
+                }
+                otherPlayers[data.id].position.set(data.x, data.y, data.z);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            // O'yinchi harakati mantiqi
+            const speed = 6.0 * delta;
+            let moveDir = new THREE.Vector3();
+            if (moveForward) moveDir.z -= 1;
+            if (moveBackward) moveDir.z += 1;
+            if (moveLeft) moveDir.x -= 1;
+            if (moveRight) moveDir.x += 1;
+            moveDir.normalize();
+            moveDir.applyQuaternion(camera.quaternion);
+            moveDir.y = 0; // Faqat XZ tekisligida yurish
+
+            player.position.addScaledVector(moveDir, speed);
+
+            // Tortishish kuchi (Gravity) va sakrash
+            velocityY -= 0.006; // Gravitatsiya
+            player.position.y += velocityY;
+
+            // Yerga / Platformaga tushishni tekshirish (Oddiy simulyatsiya)
+            if (player.position.y <= 1.5) {
+                player.position.y = 1.5;
+                velocityY = 0;
+                canJump = true;
+            }
+
+            // Kamerani o'yinchi ortidan ergashishi
+            camera.position.copy(player.position);
+            camera.position.y += 1.5; // Ko'z balandligi
+
+            // Balandlikni ekranga chiqarish
+            document.getElementById('heightScore').innerText = Math.max(0, Math.floor(player.position.y));
+
+            // Ma'lumotlarni do'stga yuborish (Multiplayer)
+            if (isConnected && conn && conn.open) {
+                conn.send({
+                    id: peer.id,
+                    x: player.position.x,
+                    y: player.position.y,
+                    z: player.position.z
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
