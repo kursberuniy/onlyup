@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Multiplayer Parkour (Only Up & Descent)</title>
+    <title>3D Parkour Multiplayer (GitHub Only)</title>
     <link rel="stylesheet" href="style.css">
 
-    <!-- Three.js va Firebase SDK (v9/v10 Compat) -->
+    <!-- Three.js va PeerJS kutubxonalari -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 
@@ -17,22 +16,22 @@
     <div id="menuContainer">
         <div class="menu-box">
             <h1>3D Parkour Multiplayer</h1>
-            <p class="subtitle">Zinapoyalardan pastga va yuqoriga harakatlanish</p>
+            <p class="subtitle">Faqat GitHub orqali bepul o'yin</p>
             
             <button class="btn-primary" onclick="createRoom()">Xona Yaratish (Host)</button>
-            <p id="roomCodeDisplay" class="room-code"></p>
+            <p id="roomCodeDisplay" class="room-code">ID kutilmoqda...</p>
             
             <div class="divider"></div>
             
-            <input type="text" id="roomInput" placeholder="Xona kodini kiriting (masalan: 1234)">
+            <input type="text" id="roomInput" placeholder="Do'stning ID sini kiriting">
             <button class="btn-secondary" onclick="joinRoom()">Xonaga Qo'shilish</button>
         </div>
     </div>
 
-    <!-- O'YIN ICHIDAGI UI -->
+    <!-- O'YIN UI -->
     <div id="crosshair"></div>
     <div id="ui">
-        <p>Holat: <span id="connectionStatus" class="status-waiting">Xona kutilmoqda...</span></p>
+        <p>Holat: <span id="connectionStatus" class="status-waiting">Ulanish kutilmoqda...</span></p>
         <p>Balandlik: <span id="heightScore">0</span>m</p>
         <p class="controls-hint">W, A, S, D — Yurish | Space — Sakrash | Mishka — Kamera</p>
     </div>
