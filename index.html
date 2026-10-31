@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parkour Multiplayer (GitHub Only)</title>
+    <title>3D Parkour Multiplayer (GitHub Free MQTT)</title>
     <link rel="stylesheet" href="style.css">
 
-    <!-- Three.js va PeerJS kutubxonalari -->
+    <!-- Three.js va MQTT.js kutubxonalari -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 </head>
 <body>
 
@@ -16,14 +16,14 @@
     <div id="menuContainer">
         <div class="menu-box">
             <h1>3D Parkour Multiplayer</h1>
-            <p class="subtitle">Faqat GitHub orqali bepul o'yin</p>
+            <p class="subtitle">Faqat GitHub + Public MQTT (Bloklanmaydi)</p>
             
             <button class="btn-primary" onclick="createRoom()">Xona Yaratish (Host)</button>
-            <p id="roomCodeDisplay" class="room-code">ID kutilmoqda...</p>
+            <p id="roomCodeDisplay" class="room-code">Xona kodi kutilmoqda...</p>
             
             <div class="divider"></div>
             
-            <input type="text" id="roomInput" placeholder="Do'stning ID sini kiriting">
+            <input type="text" id="roomInput" placeholder="Xona kodini kiriting (masalan: 1234)">
             <button class="btn-secondary" onclick="joinRoom()">Xonaga Qo'shilish</button>
         </div>
     </div>
