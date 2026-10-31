@@ -1,77 +1,102 @@
-let scene, camera, renderer, player, peer, conn;
+let scene, camera, renderer, player;
 let otherPlayers = {};
+let client = null;
+let currentRoomId = null;
+let myPlayerId = 'player_' + Math.floor(Math.random() * 10000);
+
 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
 let velocityY = 0, canJump = false;
-let isConnected = false;
 let gameStarted = false;
 
 const clock = new THREE.Clock();
 
-// PeerJS obyektini xavfsiz yaratish (Stun serverlar bilan)
-function initPeer(onOpen) {
-    const p = new Peer({
-        host: '0.peerjs.com',
-        port: 443,
-        secure: true,
-        config: {
-            'iceServers': [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
-            ]
+// Public MQTT Brokerga ulanish (WebSocket secure 8884 port - bloklanmaydi)
+function connectMQTT(callback) {
+    const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
+    client = mqtt.connect(brokerUrl);
+
+    client.on('connect', () => {
+        console.log("MQTT Serverga ulandi!");
+        if (callback) callback();
+    });
+
+    client.on('error', (err) => {
+        console.error("MQTT Xatosi:", err);
+        alert("Tarmoqqa ulanishda xatolik yuz berdi.");
+    });
+
+    client.on('message', (topic, payload) => {
+        try {
+            const data = JSON.parse(payload.toString());
+            if (data.id && data.id !== myPlayerId) {
+                updateOtherPlayer(data);
+            }
+        } catch (e) {
+            console.error("Xatolik:", e);
         }
     });
-
-    p.on('error', (err) => {
-        console.error("PeerJS xatosi:", err);
-        alert("Ulanishda xatolik: " + err.type + "\nIltimos, sahifani yangilab boshqatdan urinib ko'ring.");
-    });
-
-    p.on('open', (id) => {
-        if (onOpen) onOpen(id);
-    });
-
-    return p;
 }
 
 function createRoom() {
-    document.querySelector('.btn-primary').innerText = "Xona ochilmoqda...";
-    peer = initPeer((id) => {
-        document.getElementById('roomCodeDisplay').innerText = "Sizning ID: " + id;
-    });
+    const roomId = Math.floor(1000 + Math.random() * 9000).toString();
+    currentRoomId = roomId;
 
-    peer.on('connection', (incomingConn) => {
-        conn = incomingConn;
-        setupConnection();
-        startGame();
+    document.getElementById('roomCodeDisplay').innerText = "Xona Kodi: " + roomId;
+    document.querySelector('.btn-primary').innerText = "Ulanmoqda...";
+
+    connectMQTT(() => {
+        document.getElementById('roomCodeDisplay').innerText = "Xona Kodi: " + roomId + " (Tayyor!)";
+        client.subscribe(`kursberuniy/parkour/${roomId}/+`, (err) => {
+            if (!err) {
+                startGame();
+            }
+        });
     });
 }
 
 function joinRoom() {
-    const peerId = document.getElementById('roomInput').value.trim();
-    if (!peerId) return alert('Iltimos do\'stingizning ID sini kiriting!');
+    const roomId = document.getElementById('roomInput').value.trim();
+    if (!roomId) {
+        alert("Iltimos xona kodini kiriting!");
+        return;
+    }
+    currentRoomId = roomId;
 
-    peer = initPeer(() => {
-        conn = peer.connect(peerId);
-        setupConnection();
-        startGame();
+    connectMQTT(() => {
+        client.subscribe(`kursberuniy/parkour/${roomId}/+`, (err) => {
+            if (!err) {
+                startGame();
+            }
+        });
     });
 }
 
-function setupConnection() {
-    isConnected = true;
+function updateOtherPlayer(data) {
     const statusEl = document.getElementById('connectionStatus');
     statusEl.innerText = "Ulandi! 🟢";
     statusEl.className = "status-online";
 
-    conn.on('data', (data) => {
-        if (!otherPlayers[data.id]) {
-            const oGeo = new THREE.BoxGeometry(1, 2, 1);
-            const oMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
-            otherPlayers[data.id] = new THREE.Mesh(oGeo, oMat);
-            scene.add(otherPlayers[data.id]);
-        }
-        otherPlayers[data.id].position.set(data.x, data.y, data.z);
+    if (!otherPlayers[data.id]) {
+        const oGeo = new THREE.BoxGeometry(1, 2, 1);
+        const oMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
+        otherPlayers[data.id] = new THREE.Mesh(oGeo, oMat);
+        scene.add(otherPlayers[data.id]);
+    }
+    otherPlayers[data.id].position.set(data.x, data.y, data.z);
+}
+
+function sendMyPosition() {
+    if (!client || !currentRoomId || !player) return;
+
+    const topic = `kursberuniy/parkour/${currentRoomId}/${myPlayerId}`;
+    const payload = JSON.stringify({
+        id: myPlayerId,
+        x: Number(player.position.x.toFixed(2)),
+        y: Number(player.position.y.toFixed(2)),
+        z: Number(player.position.z.toFixed(2))
     });
+
+    client.publish(topic, payload);
 }
 
 function startGame() {
@@ -95,13 +120,11 @@ function init3D() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Yorug'lik
     const light = new THREE.DirectionalLight(0xffffff, 1.2);
     light.position.set(20, 50, 20);
     scene.add(light);
     scene.add(new THREE.AmbientLight(0x64748b));
 
-    // O'yinchi
     const playerGeo = new THREE.BoxGeometry(1, 2, 1);
     const playerMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
     player = new THREE.Mesh(playerGeo, playerMat);
@@ -157,23 +180,30 @@ function setupControls() {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.code === 'KeyW') moveForward = true;
-        if (e.code === 'KeyS') moveBackward = true;
-        if (e.code === 'KeyA') moveLeft = true;
-        if (e.code === 'KeyD') moveRight = true;
-        if (e.code === 'Space' && canJump) {
+        let key = e.code;
+        if (key === 'KeyW' || key === 'ArrowUp') moveForward = true;
+        if (key === 'KeyS' || key === 'ArrowDown') moveBackward = true;
+        if (key === 'KeyA' || key === 'ArrowLeft') moveLeft = true;
+        if (key === 'KeyD' || key === 'ArrowRight') moveRight = true;
+        if (key === 'Space' && canJump) {
             velocityY = 0.12;
             canJump = false;
         }
     });
 
     document.addEventListener('keyup', (e) => {
-        if (e.code === 'KeyW') moveForward = false;
-        if (e.code === 'KeyS') moveBackward = false;
-        if (e.code === 'KeyA') moveLeft = false;
-        if (e.code === 'KeyD') moveRight = false;
+        let key = e.code;
+        if (key === 'KeyW' || key === 'ArrowUp') moveForward = false;
+        if (key === 'KeyS' || key === 'ArrowDown') moveBackward = false;
+        if (key === 'KeyA' || key === 'ArrowLeft') moveLeft = false;
+        if (key === 'KeyD' || key === 'ArrowRight') moveRight = false;
     });
 }
+
+// Har 50ms da pozitsiyani yuborish
+setInterval(() => {
+    if (gameStarted) sendMyPosition();
+}, 50);
 
 function animate() {
     requestAnimationFrame(animate);
@@ -208,16 +238,6 @@ function animate() {
     camera.position.y += 1.6;
 
     document.getElementById('heightScore').innerText = Math.floor(player.position.y);
-
-    // Ma'lumotni to'g'ridan-to'g'ri do'stga yuborish
-    if (isConnected && conn && conn.open) {
-        conn.send({
-            id: peer.id,
-            x: Number(player.position.x.toFixed(2)),
-            y: Number(player.position.y.toFixed(2)),
-            z: Number(player.position.z.toFixed(2))
-        });
-    }
 
     renderer.render(scene, camera);
 }
